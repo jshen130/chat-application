@@ -24,16 +24,6 @@ $(function() {
 
     var socket = io();
 
-    function addParticipantsMessage (data) {
-	var message = '';
-	if (data.numUsers === 1) {
-	    message += "there's 1 participant";
-	} else {
-	    message += "there are " + data.numUsers + " participants";
-	}
-	log(message);
-    }
-
     // Sets the client's username
     function setUsername () {
 	username = cleanInput($usernameInput.val().trim());
@@ -54,14 +44,15 @@ $(function() {
     function sendMessage () {
 	var message = $inputMessage.val();
 	// Prevent markup from being injected into the message
-	message = cleanInput(message);
+	message = {
+	    username: username,
+	    message: cleanInput(message),
+	    time: (new Date).toString("MM.dd.yyyy hh:mm tt")
+	};
 	// if there is a non-empty message and a socket connection
 	if (message && connected) {
 	    $inputMessage.val('');
-	    addChatMessage({
-		username: username,
-		message: message
-	    });
+	    addChatMessage(message);
 	    // tell server to execute 'new message' and send along one parameter
 	    socket.emit('new message', message);
 	}
@@ -82,18 +73,21 @@ $(function() {
 	    options.fade = false;
 	    $typingMessages.remove();
 	}
-
+	console.log(data);
 	var $usernameDiv = $('<span class="username"/>')
 	    .text(data.username)
 	    .css('color', getUsernameColor(data.username));
-	var $messageBodyDiv = $('<span class="messageBody">')
+	var $br = $('<br>');
+	var $messageBodyDiv = $('<span class="messageBody" style="margin-left:2em">')
 	    .text(data.message);
+	var $timeBodyDiv = $('<span class="timeBody" style="float:right; font-size:70%;color:#808080">')
+	    .text(data.time);
 
 	var typingClass = data.typing ? 'typing' : '';
 	var $messageDiv = $('<li class="message"/>')
 	    .data('username', data.username)
 	    .addClass(typingClass)
-	    .append($usernameDiv, $messageBodyDiv);
+	    .append($usernameDiv, $timeBodyDiv, $br, $messageBodyDiv);
 
 	addMessageElement($messageDiv, options);
     }
@@ -155,10 +149,10 @@ $(function() {
 		typing = true;
 		socket.emit('typing');
 	    }
-	    lastTypingTime = (new Date()).getTime();
+	    lastTypingTime = (new Date()).toString("MM.dd.yyyy hh:mm tt");
 
 	    setTimeout(function () {
-		var typingTimer = (new Date()).getTime();
+		var typingTimer = (new Date()).toString("MM.dd.yyyy hh:mm tt");
 		var timeDiff = typingTimer - lastTypingTime;
 		if (timeDiff >= TYPING_TIMER_LENGTH && typing) {
 		    socket.emit('stop typing');
@@ -190,10 +184,6 @@ $(function() {
     // Keyboard events
 
     $window.keydown(function (event) {
-	// Auto-focus the current input when a key is typed
-	if (!(event.ctrlKey || event.metaKey || event.altKey)) {
-	    $currentInput.focus();
-	}
 	// When the client hits ENTER on their keyboard
 	if (event.which === 13) {
 	    if (username) {
@@ -228,11 +218,10 @@ $(function() {
     socket.on('login', function (data) {
 	connected = true;
 	// Display the welcome message
-	var message = "Welcome to Socket.IO Chat – ";
+	var message = "Welcome to the FSE Chat Room – ";
 	log(message, {
 	    prepend: true
 	});
-	addParticipantsMessage(data);
     });
 
     // Whenever the server emits 'new message', update the chat body
@@ -243,13 +232,11 @@ $(function() {
     // Whenever the server emits 'user joined', log it in the chat body
     socket.on('user joined', function (data) {
 	log(data.username + ' joined');
-	addParticipantsMessage(data);
     });
 
     // Whenever the server emits 'user left', log it in the chat body
     socket.on('user left', function (data) {
 	log(data.username + ' left');
-	addParticipantsMessage(data);
 	removeChatTyping(data);
     });
 
@@ -262,4 +249,13 @@ $(function() {
     socket.on('stop typing', function (data) {
 	removeChatTyping(data);
     });
+
+    socket.on('previous', function(data) {
+	console.log(data);
+	for (var i = 0; i < data.length; i++) {
+	    addChatMessage(data[i]);
+	}
+
+    });
+	    
 });
